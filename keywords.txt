@@ -40,7 +40,7 @@ txpower	KEYWORD2
 begin	KEYWORD2
 test	KEYWORD2
 reset	KEYWORD2
-restore KEYWORD2
+restore	KEYWORD2
 getVersion	KEYWORD2
 echo	KEYWORD2
 setBaud	KEYWORD2
