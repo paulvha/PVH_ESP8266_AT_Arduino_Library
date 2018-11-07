@@ -209,7 +209,7 @@ void initGPIO()
 
   for (i=0 ; i< ESP_LEDS; i ++)
   {
-    if (ESP_LED[i] != 0x0) {esp8266.pinMode(ESP_LED[i],OUTPUT); esp8266.digitalWrite(ESP_LED[i], LOW);}
+    if (ESP_LED[i] != 0x0) {esp8266.EsppinMode(ESP_LED[i],OUTPUT); esp8266.EspdigitalWrite(ESP_LED[i], LOW);}
   }
 
   // input button
@@ -220,7 +220,7 @@ void initGPIO()
 
   for (i=0 ; i< ESP_BUTS; i ++)
   {
-    if (ESP_BUT[i] != 0x0) esp8266.pinMode(ESP_BUT[i],INPUT_PULLUP);
+    if (ESP_BUT[i] != 0x0) esp8266.EsppinMode(ESP_BUT[i],INPUT_PULLUP);
   }
 
   // reset LEDs structure
@@ -373,7 +373,7 @@ void SetLedPin(int ind)
 {
   // set pin to requested state
   if (LEDS[ind].board == 'A') digitalWrite(A_LED[LEDS[ind].gpio], LEDS[ind].r_state);
-  else esp8266.digitalWrite(ESP_LED[LEDS[ind].gpio],LEDS[ind].r_state);
+  else esp8266.EspdigitalWrite(ESP_LED[LEDS[ind].gpio],LEDS[ind].r_state);
 
   // set current state to requested state
   LEDS[ind].c_state = LEDS[ind].r_state;
@@ -636,7 +636,7 @@ int STATUS()
      // check within limit and set (valid)
      if (pin > ESP_BUTS  || pin < 0 || ESP_BUT[pin] == 0x0) return -1;
 
-     return esp8266.digitalRead(ESP_BUT[pin]);
+     return esp8266.EspdigitalRead(ESP_BUT[pin]);
   }
 }
 
