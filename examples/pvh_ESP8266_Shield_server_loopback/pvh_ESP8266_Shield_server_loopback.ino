@@ -82,6 +82,11 @@ char mask[]="255.255.255.0";
 uint16_t _port = 333;
 ESP8266Server server = ESP8266Server(_port);
 
+// enable hard reset option . Make a wire connection from the pin (11
+// in this example) to 'RST'on the WIFI board ESP8266 GPIO pins
+
+#define WIFI_HARD_RESET_PIN 11
+
 // All functions called from setup() are defined below the
 // loop() function. They modularized to make it easier to
 // copy/paste into sketches of your own.
@@ -123,6 +128,16 @@ void loop()
 
 void initializeESP8266()
 {
+  /* Enable hard reset. Driver can decide to use in case the shield does not respond
+   * or the user can reset before start
+   * pin must have been defined before*/
+
+  if (WIFI_HARD_RESET_PIN > 0)
+  {
+    Serial.println(F("perform hard reset on Wifi-shield + 2 sec wait"));
+    esp8266.enableResetPin(WIFI_HARD_RESET_PIN);
+    esp8266.hard_reset();
+  }
   // esp8266.begin() verifies that the ESP8266 is operational
   // and sets it up for the rest of the sketch.
   // It returns either true or false -- indicating whether
@@ -533,18 +548,24 @@ int setmode(int mode)
  * return:
  * number of bytes received and stored in optional buffer
  *
+ * Version 2 : updated loop to work better
+ *
  */
 int readData(ESP8266Client client, char *out, int len, int retry)
 {
-   bool wait = 1;
+     int wait = 0;
    char c;
-   int i = 0;
+   int i = 0, ch_count = 0;
+   char ch_len[5];
+   int retry_loop = retry;
 
-  // Try at least loop times
-  while (retry > 0)
+   out[0] = 0x0;                       // terminate return message in case of empty message received
+
+  // Try at least loop times before returning
+  while (retry_loop > 0)
   {
-     retry--;
-     delay(5);    // wait 5ms
+     retry_loop--;
+     delay(100);                      // wait 100ms to handle any delay between characters
 
     // available() will return the number of characters
     // currently in the receive buffer.
@@ -553,22 +574,42 @@ int readData(ESP8266Client client, char *out, int len, int retry)
       // get character from buffer
       c = client.read();
 
-      // skip +IPD ....  header
-      if (wait)
+      // parse +IPD ....  header. format is : +IPD,0,4:paul
+      if (wait < 3)
       {
-        if (c == ':')  wait = 0;
-        continue;
+        if (wait == 2) ch_len[i++] = c;  // after the second comma : store character count digit(s)
+
+        if (c == ',') wait++;            // count comma's
+
+        else if (c == ':')               // end of header
+        {
+          ch_len[i] = 0x0;               // terminate buffer
+          ch_count= atoi(ch_len);        // calculate length of message
+          wait = 3;                      // indicate header has been parsed
+          i = 0;                         // reset storage counter
+        }
+
+        continue;                        // skip rest of loop
       }
 
+      // if no buffer length, just display character on serial/screen
       if (len == 0) Serial.write(c);
       else
-      { //output to provided buffer
+      {
+        //output to provided buffer
         out[i++] = c;
         if (i == len) return len;
       }
+
+      // if we got atleast ONE character, but not all increase retry_loop to keep trying to get all
+      // we should not expect/hope this loopcount will be reached. This is only to prevent a dead-lock
+      if (--ch_count > 0) retry_loop = 10;
+
+      // seems we got them all, no need for waiting and retry
+      else return i;
     }
   }
 
-  // return count in buffer
+  // return count of characters in buffer
   return i;
 }
