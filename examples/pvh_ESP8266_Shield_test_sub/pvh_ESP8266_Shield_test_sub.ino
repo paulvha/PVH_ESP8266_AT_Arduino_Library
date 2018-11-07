@@ -79,6 +79,11 @@ char mask[]="255.255.255.0";
 uint16_t _port = 333;
 ESP8266Server server = ESP8266Server(_port);
 
+// enable hard reset option . Make a wire connection from the pin (11
+// in this example) to 'RST'on the WIFI board ESP8266 GPIO pins
+
+#define WIFI_HARD_RESET_PIN 11
+
 // All functions called from setup() are defined below the
 // loop() function. They modularized to make it easier to
 // copy/paste into sketches of your own.
@@ -120,6 +125,17 @@ void loop()
 
 void initializeESP8266()
 {
+  /* Enable hard reset. Driver can decide to use in case the shield does not respond
+   * or the user can reset before start
+   * pin must have been defined before*/
+
+  if (WIFI_HARD_RESET_PIN > 0)
+  {
+    Serial.println(F("perform hard reset on Wifi-shield + 2 sec wait"));
+    esp8266.enableResetPin(WIFI_HARD_RESET_PIN);
+    esp8266.hard_reset();
+  }
+
   // esp8266.begin() verifies that the ESP8266 is operational
   // and sets it up for the rest of the sketch.
   // It returns either true or false -- indicating whether
