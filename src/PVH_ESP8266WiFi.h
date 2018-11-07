@@ -1,8 +1,45 @@
 /**********************************************************************
 * VERSION 1.0 / PAULVHA / JANUARY 2018  / ESP8266-PVH-driver
 *
-* PVH_ESP8266WiFi.h
+* VERSION 2.0 / PAULVHA / November 2018  / ESP8266-PVH-driver
+* new options + bug fixes :
+* - Does now support Hardwareserial, Hardwareserial1  - 2 and 3 (NOTE-1)
+* - improved searchbuffer to get better result
+* - baudrate handling different to default 9600 now working
+* - change reset handling routine
+* - added hard-reset and enableResetpin options
+* - changed names Pinmode, digitalRead and digitalWrite to Esppinmode,
+*   EspdigitalRead and EspdigitalWrite. This will prevent confusion
+* - extended timeout different times
+* - further optimized to lower bytes footprint
+* - updated GPIO, loopback, talkback examples
 *
+* PVH_ESP8266WiFi.h
+
+NOTE-1:
+For HardwareSerial connect
+   set the on-board switch to HW UART (IMPORTANT*1)
+
+   THe RXline from the UART connection is connected to RX1 pin ( *2)
+   THe TXline from the UART connection is connected to TX1 pin ( *2)
+
+*1 : As the switch is on HW, the TX and RX signals are not only connected to the UART, but
+     also to pin 1 and 2 of the shield. These is already used by the Arduino for the USB connection.
+     You MUST make sure that these pin 1 and 2 are NOT CONNECTED to the Arduino (just cut them off)
+
+     Select the hardware interface with calling ESP8266 :
+
+     esp8266.begin(WIFI_SERIAL_SPEED, WIFI_SERIAL_TYPE);
+
+     Valid WIFI_SERIAL_TYPE are  :
+        ESP8266_SOFTWARE_SERIAL (default)
+        ESP8266_HARDWARE_SERIAL
+        ESP8266_HARDWARE_SERIAL1
+        ESP8266_HARDWARE_SERIAL2
+        ESP8266_HARDWARE_SERIAL3
+
+*2 : Pin is depending on the hardware UART and the board
+
 * This an updated version for the ESP8266 AT WIFI shield driver
 * for the Arduino. It contains a number of bugfixes, enhancements and
 * new features that are not part of the original version (see below)
@@ -52,7 +89,6 @@ Distributed as-is; no warranty is given.
  *
  * Functions that will return -1:
  *      detectAP(char *ssid, char *out, int len, unsigned long timeout);
- *      setBaud(bool mode, unsigned long baud)
  *      getVersion(char *ATversion, char *SDKversion, char *compileTime)
  *      sleep(int mode)
  *      AutoConnect(int action)
@@ -69,20 +105,37 @@ Distributed as-is; no warranty is given.
 
 //#define ESP_LIGHT 1
 
+//////////////////////////////////////////
+// Default speed after power-on or reset//
+//////////////////////////////////////////
+#define DEFAULT_SPEED 9600
+
 /////////////////////
 // Pin Definitions //
 /////////////////////
 #define ESP8266_SW_RX   9   // ESP8266 UART0 RXI goes to Arduino pin 9
+
+#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+#define ESP8266_SW_TX   10   // ESP8266 UART0 TXO goes to Arduino pin 10
+#else
 #define ESP8266_SW_TX   8   // ESP8266 UART0 TXO goes to Arduino pin 8
+#endif
+
+///WARNING WARNING WARNING WARNING WARNING WARNINGWARNING WARNING WARNING
+// if you connect this shield to a MEGA2560, you can NOT use pin 8
+// (that is a hardware limitation of the board. you can use pin 10
+// and make a wire connection between pin 8 and 10 on the shield
+////////////////////////////////////////////////////////////
+
 
 ///////////////////////////////
 // Command Response Timeouts //
 ///////////////////////////////
-#define COMMAND_RESPONSE_TIMEOUT 5000
+#define COMMAND_RESPONSE_TIMEOUT 10000  // changed from 5000
 #define COMMAND_PING_TIMEOUT     3000
 #define WIFI_CONNECT_TIMEOUT     50000
 #define COMMAND_RESET_TIMEOUT    5000
-#define CLIENT_CONNECT_TIMEOUT   5000
+#define CLIENT_CONNECT_TIMEOUT   10000  // changed from 5000
 
 #define ESP8266_MAX_SOCK_NUM     5      // max 5 clients
 #define ESP8266_SOCK_NOT_AVAIL   255
@@ -154,7 +207,10 @@ typedef enum esp8266_connect_status {
 
 typedef enum esp8266_serial_port {
     ESP8266_SOFTWARE_SERIAL,
-    ESP8266_HARDWARE_SERIAL
+    ESP8266_HARDWARE_SERIAL,
+    ESP8266_HARDWARE_SERIAL1,
+    ESP8266_HARDWARE_SERIAL2,
+    ESP8266_HARDWARE_SERIAL3
 };
 
 typedef enum esp8266_socket_state {
@@ -199,9 +255,10 @@ public:
     // Basic AT Commands //
     ///////////////////////
     bool test();
-    int reset();
+    bool reset();
     int restore();
     bool echo(bool enable);
+    bool enableResetPin(uint8_t pin);  // use a GPIO pin of the Arduino to perform a hard reset. This reset will be initiated by the driver
 
     bool debug(int act);    // enable of disable debug (0 = disable, 1 = show commands, 2 = detailed)
     void rx_empty(void);
@@ -212,9 +269,15 @@ public:
 
     bool setBaud(unsigned long baud);
     bool setBaud(bool mode, unsigned long baud);
+    bool set_serial_speed();
 
-    int16_t getVDD_txpower();
+    // int16_t getVDD_txpower();
     int16_t txpower(int mode, int level);
+
+    //////////////////////////////////////////////////////////
+    // Perform a hard reset, only if pin was defined before //
+    //////////////////////////////////////////////////////////
+    void hard_reset();
 
     ////////////////////
     // WiFi Functions //
@@ -289,9 +352,9 @@ public:
     //////////////////////////
     // Custom GPIO Commands //
     //////////////////////////
-    int16_t pinMode(uint8_t pin, uint8_t mode);
-    int16_t digitalWrite(uint8_t pin, uint8_t state);
-    int8_t digitalRead(uint8_t pin);
+    int16_t EsppinMode(uint8_t pin, uint8_t mode);
+    int16_t EspdigitalWrite(uint8_t pin, uint8_t state);
+    int8_t  EspdigitalRead(uint8_t pin);
 
     ///////////////////////////////////
     // Virtual Functions from Stream //
@@ -308,8 +371,10 @@ public:
 protected:
     Stream* _serial;
     unsigned long _baud;
+    esp8266_serial_port _serial_port;
 
 private:
+
     //////////////////////////
     // Command Send/Receive //
     //////////////////////////
