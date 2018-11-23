@@ -41,8 +41,19 @@ For HardwareSerial connect
         ESP8266_HARDWARE_SERIAL1
         ESP8266_HARDWARE_SERIAL2
         ESP8266_HARDWARE_SERIAL3
-
 *2 : Pin is depending on the hardware UART and the board
+==============================================================
+
+## VERSION 2.1 / PAULVHA / November 2018  / ESP8266-PVH-driver
+   new option + bug fixes
+   - with get_url_parameter you can obtain the query string as part of the URL
+   - fixed issue with readData() in different sketches to prevent buffer overrun
+   - updated client.connected() to enable more stable performance and capture url_parameters
+   - update server.available() to provide additional feedback in seperate variable.
+   - change updateStatus() and readForResponses() to capture Url_parameters
+
+The needed RAM/ROM space has increased and might cause issues when connected on an Arduino UNO
+
 =====================================================================
 
 ##  Examples
@@ -85,6 +96,11 @@ The following workbooks.odt are available:
 4. workbook_server_loopback or talkback
     Create a server on the local network and perform talkback (basic Chat) or
     loopback. A test-client program for Linux (tclient.c) is available in extra-folder.
+
+5. Connect an Nano RFID reader (on a MEGA2560)
+   Create a server on the local network and constant check for new RFID EPC-tags. The unique
+   detected are stored in a local array on MEGA and can be obtained with remote commands from
+   either a browser or program ( example epconnect.c is provided )
 
 ##  calls and subroutines
 

@@ -640,11 +640,18 @@ int readData(ESP8266Client client, char *out, int len, int retry)
       else
       { //output to provided buffer
         out[i++] = c;
-        if (i == len) return len;
+
+        // prevent buffer overrun
+        if (i == len-1)
+        {
+          out[i] = 0x0;  // terminate
+          return i;
+        }
       }
     }
   }
 
+  out[i] = 0x0;
   // return count in buffer
   return i;
 }

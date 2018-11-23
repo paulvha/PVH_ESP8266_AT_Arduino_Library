@@ -7,6 +7,14 @@
 * for the Arduino. It contains a number of bugfixes, enhancements and
 * new features that are not part of the original version (see below)
 *
+* VERSION 2.1 / PAULVHA / November 2018  / ESP8266-PVH-driver
+* new option + bug fixes
+* - with get_url_parameter you can obtain the query string as part of the URL
+* - fixed issue with readData() in different sketches to prevent buffer overrun
+* - updated client.connected() to enable more stable performance and capture url_parameters
+* - update server.available() to provide additional feedback in seperate variable.
+* - change updateStatus() and readForResponses() to capture Url_parameters
+*
 * Distributed as-is; no warranty is given.
 ***********************************************************************
 * Original version :
@@ -34,7 +42,7 @@ Distributed as-is; no warranty is given.
 #include <Arduino.h>
 #include "util/PVH_AT.h"
 #include "PVH_ESP8266Client.h"
-
+#include "printf.h"
 /* changed to set _socket as not available
  * as such we when a client connecting to a remote server is made we need
  * to obtain our local socket at the time of connecting
@@ -183,6 +191,10 @@ void ESP8266Client::stop()
     if(_socket != ESP8266_SOCK_NOT_AVAIL)
     {
         esp8266.close(_socket);
+
+        // set to obtain URL_PARAMETER on next connection
+        esp8266._status.URL_parameter = ESP8266_NEED_PARAMETER;
+
         _socket = ESP8266_SOCK_NOT_AVAIL;
     }
 }
@@ -204,14 +216,70 @@ uint8_t ESP8266Client::connected()
 
     else     // check that the socket is still alive
     {
-        // update status
-        esp8266.updateStatus();
+        // update status (try to find parameters)
+        if (esp8266._status.URL_parameter == ESP8266_NEED_PARAMETER)
+        {
+            esp8266.updateStatus();
 
+            if (strlen(esp8266._status._URI_arguments) > 0)
+            {
+                /* indicate that client is still connected
+                 * this can get lost due to buffer overrun in updatestatus
+                 *
+                 * For now we assume that only ONE client is requesting at the same time.
+                 * maybe tricky.. but true in 99% of the cases.. oh well..
+                 */
+                return 1;
+            }
+        }
+        else
+        {
+            esp8266.updateStatus();
+        }
         // if socket is still active connected
         if (esp8266._status.ipstatus[_socket].linkID != ESP8266_SOCK_NOT_AVAIL)
             return 1;
     }
+
+    // obtain URL parameters on next connect
+    esp8266._status.URL_parameter = ESP8266_NEED_PARAMETER;
     return 0;
+}
+
+
+/* return any URL parameters that we supplied with the last new connection */
+uint8_t ESP8266Client::get_url_parameter(char * buf, uint8_t buf_size)
+{
+    uint8_t i,len;
+
+    // if not received parameters
+    if (esp8266._status.URL_parameter == ESP8266_NEED_PARAMETER)
+    {
+        buf[0] = 0x0;
+        return 0;
+    }
+
+    len = strlen(esp8266._status._URI_arguments);
+
+    // do not overflow provided buffer. -1 to allow for termination
+    if (len > buf_size) len = buf_size -1;
+
+    for (i = 0; i < len; i++)
+    {
+       if (esp8266._status._URI_arguments[i] == 0x0) break;
+
+       // copy character
+       buf[i] = esp8266._status._URI_arguments[i];
+    }
+
+    // only provide one time
+    esp8266._status._URI_arguments[0] = 0x0;
+
+    // terminate
+    buf[i] = 0x0;
+
+    // return number of characters in buffer
+    return i;
 }
 
 /* This is the response to the statement "if (client)" in a sketch

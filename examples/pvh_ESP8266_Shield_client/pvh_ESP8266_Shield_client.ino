@@ -5,15 +5,15 @@
  * once connected it will send a welcome message. Text entered in the
  * serial monitor is send to the server will be displayed and text received
  * from the server displayed in serial monitor
- * 
+ *
  * When CLOSE (in capitals) is entered, The connection will be closed and
  * the program will loop to allow a reconnect.
- * 
+ *
  * When STOP (in capitals) is entered, The connection will be closed and
  * the WIFI will be disconnected and the program will go in endless loop.
  *
- * To test this client a seperate progam has been developed:loop.c. It is 
- * available in the folder "extra". This has been tested between an Arduino 
+ * To test this client a seperate progam has been developed:loop.c. It is
+ * available in the folder "extra". This has been tested between an Arduino
  * and RaspberryPI-3 and also to Ubuntu 16.04 LTS
  *
  * A large number of bugfixes in the code and driver has been done to improve the
@@ -24,7 +24,7 @@
  * IDE: Arduino 1.8.6
  *  Hardware Platform: Arduino Uno
  *  ESP8266 WiFi Shield Version: 1.0
- *  
+ *
  * Distributed as-is; no warranty is given.
  ***********************************************************
 Based on the original version of this sketch :
@@ -67,7 +67,7 @@ const char myPSK[] = "yourPWDhere";
 //////////////////////////////////////////////////
 //           set new static IP if wanted        //
 // Default :  no change wanted                  //
-// Change  #define ipaddress ""                 // 
+// Change  #define ipaddress ""                 //
 // to something like #define "192.168.1.161";   //
 //////////////////////////////////////////////////
 #define ipaddress ""
@@ -126,7 +126,7 @@ void setup()
 void loop()
 {
   String input;
-  
+
   // as long as we are connected to remote
   if (client.connected())
   {
@@ -152,11 +152,11 @@ void loop()
     else if (strcmp(input.c_str(),"STOP\n") == 0)
     {
       Serial.println(F("Stopping connection"));
-      
+
       // close connection
       client.stop();
 
-      // disconnect from WIFI        
+      // disconnect from WIFI
       esp8266.disconnect();
 
       // done..
@@ -183,7 +183,7 @@ void loop()
   }
 }
 
-/* check for presence and set parameters beforee connecting */ 
+/* check for presence and set parameters beforee connecting */
 void initializeESP8266()
 {
   // esp8266.begin() verifies that the ESP8266 is operational
@@ -209,7 +209,7 @@ void initializeESP8266()
   // the on-board antenna can not handle it well.
   // strongly adviced to preven to connection problems as much as possible
   esp8266.txpower(ESP8266_POWER_SET,40);
-  
+
   // display firmware info (optional)
   firmware_info();
 }
@@ -270,9 +270,9 @@ void Server_connect()
 {
   // remove any pending input from serial
   while (Serial.available())  Serial.read();
-  
+
   serialTrigger(F("Press any key to connect as client."));
-    
+
   // ESP8266Client connect([server], [port]) is used to
   // connect to a server (const char * or IPAddress) on
   // a specified port.
@@ -296,7 +296,7 @@ void Server_connect()
 
   // give server time to react
   delay(1000);
-  
+
   // read data from server without +IPD header
   // NULL, 0 = display
   // else provide a buffer and length of buffer to store
@@ -313,11 +313,11 @@ void errorLoop(int error)
 {
   Serial.print(F("Error: ")); Serial.println(error);
   Serial.println(F("Looping forever."));
-        
-  // reset the board (maximizing chance to react 
+
+  // reset the board (maximizing chance to react
   // again when sketch is restarted
   esp8266.reset();
-  
+
   for (;;);
 }
 
@@ -428,7 +428,7 @@ void setstatic()
 {
    // check that new IP is requested
   if (strlen(CLIENTIP) == 0) return;
-  
+
   if (esp8266.setlocalIP(CUR, CLIENTIP, gateway, mask) > 0)
   {
     Serial.print(F("My new static IP: "));
@@ -535,15 +535,17 @@ int setmode(int mode)
  */
 int readData(ESP8266Client client, char *out, int len, int retry)
 {
-   bool wait = 1;
+     int wait = 0;
    char c;
-   int i = 0;
+   int i = 0, ch_count = 0;
+   char ch_len[5];
+   int retry_loop = retry;
 
-  // Try at least loop times
-  while (retry > 0)
+  // Try at least loop times before returning
+  while (retry_loop > 0)
   {
-     retry--;
-     delay(5);    // wait 5ms
+     retry_loop--;
+     delay(100);                      // wait 100ms to handle any delay between characters
 
     // available() will return the number of characters
     // currently in the receive buffer.
@@ -552,22 +554,50 @@ int readData(ESP8266Client client, char *out, int len, int retry)
       // get character from buffer
       c = client.read();
 
-      // skip +IPD ....  header
-      if (wait)
+      // parse +IPD ....  header. format is : +IPD,0,4:paul
+      if (wait < 3)
       {
-        if (c == ':')  wait = 0;
-        continue;
+        if (wait == 2) ch_len[i++] = c;  // after the second comma : store character count digit(s)
+
+        if (c == ',') wait++;            // count comma's
+
+        else if (c == ':')               // end of header
+        {
+          ch_len[i] = 0x0;               // terminate buffer
+          ch_count= atoi(ch_len);        // calculate length of message
+          wait = 3;                      // indicate header has been parsed
+          i = 0;                         // reset storage counter
+        }
+
+        continue;                        // skip rest of loop
       }
 
+      // if no buffer length, just display character on serial/screen
       if (len == 0) Serial.write(c);
       else
-      { //output to provided buffer
+      {
+        //output to provided buffer
         out[i++] = c;
-        if (i == len) return len;
+
+        // prevent buffer overrun
+        if (i == len-1)
+        {
+          out[i] = 0x0;  // terminate
+          return i;
+        }
       }
+
+      // if we got atleast ONE character, but not all increase retry_loop to keep trying to get all
+      // we should not expect/hope this loopcount will be reached. This is only to prevent a dead-lock
+      if (--ch_count > 0) retry_loop = 10;
+
+      // seems we got them all, no need for waiting and retry
+      else return i;
     }
   }
 
-  // return count in buffer
+  out[i] = 0x0;  // terminate
+
+  // return count of characters in buffer
   return i;
 }

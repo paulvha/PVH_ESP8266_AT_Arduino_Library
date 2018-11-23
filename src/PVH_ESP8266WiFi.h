@@ -14,6 +14,14 @@
 * - further optimized to lower bytes footprint
 * - updated GPIO, loopback, talkback examples
 *
+* VERSION 2.1 / PAULVHA / November 2018  / ESP8266-PVH-driver
+* new option + bug fixes
+* - with get_url_parameter you can obtain the query string as part of the URL
+* - fixed issue with readData() in different sketches to prevent buffer overrun
+* - updated client.connected() to enable more stable performance and capture url_parameters
+* - update server.available() to provide additional feedback in seperate variable.
+* - change updateStatus() and readForResponses() to capture Url_parameters
+*
 * PVH_ESP8266WiFi.h
 
 NOTE-1:
@@ -127,6 +135,10 @@ Distributed as-is; no warranty is given.
 // and make a wire connection between pin 8 and 10 on the shield
 ////////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////
+// maximum length to catch for parameters added to URL  //
+//////////////////////////////////////////////////////////
+#define URI_ARG_LEN             30
 
 ///////////////////////////////
 // Command Response Timeouts //
@@ -229,6 +241,11 @@ typedef enum esp8266_tetype {
     ESP8266_SERVER
 };
 
+typedef enum esp8266_parameter {           // capture URL parameters
+    ESP8266_NEED_PARAMETER,
+    ESP8266_HAVE_PARAMETER
+};
+
 struct esp8266_ipstatus
 {
     uint8_t linkID;
@@ -236,12 +253,17 @@ struct esp8266_ipstatus
     IPAddress remoteIP;
     uint16_t port;
     esp8266_tetype tetype;
+//esp8266_parameter URL_paramater;        // capture URL parameters
+//    char _URI_arguments[URI_ARG_LEN];       // URL parameters captured
 };
+
 
 struct esp8266_status
 {
     esp8266_connect_status stat;
     esp8266_ipstatus ipstatus[ESP8266_MAX_SOCK_NUM];
+    esp8266_parameter URL_parameter;        // capture URL parameters
+    char _URI_arguments[URI_ARG_LEN];       // URL parameters captured
 };
 
 class ESP8266Class : public Stream
@@ -329,8 +351,9 @@ public:
     /////////////////////
     // TCP/IP Commands //
     /////////////////////
-    int16_t status(bool status_new = 0);
+    int16_t status(bool status_new = 0);            // provide the old way
     int16_t updateStatus();
+
     bool    tcpStopServer();
     int16_t tcpConnect(uint8_t linkID, const char * destination, uint16_t port, uint16_t keepAlive);
     int16_t tcpSend(uint8_t linkID, const uint8_t *buf, size_t size);
@@ -348,6 +371,7 @@ public:
     int16_t configureTCPServer(uint16_t port, uint8_t create = 1);
     int16_t ping(IPAddress ip);
     int16_t ping(char * server);
+    void displayBuffer();               // for debugging
 
     //////////////////////////
     // Custom GPIO Commands //
@@ -381,7 +405,8 @@ private:
     void sendCommand(const char * cmd, enum esp8266_command_type type, int param);
     void sendCommand(const char * cmd, enum esp8266_command_type type = ESP8266_CMD_EXECUTE, const char * params = NULL);
     int16_t readForResponse(const char * rsp, unsigned int timeout);
-    int16_t readForResponses(const char * pass, const char * fail, unsigned int timeout);
+    int16_t readForResponses(const char * pass, const char * fail, unsigned int timeout, bool get_parameter);
+    int16_t readForResponse(const char * rsp, unsigned int timeout, bool get_parameter);
 
     //////////////////
     // Buffer Stuff //
@@ -400,6 +425,9 @@ private:
     char * searchBuffer(const char * test);
 
     esp8266_status _status;
+
+    // to tmp store URL arguments
+    char _URI_arguments[URI_ARG_LEN];
 
     uint8_t sync();
 };

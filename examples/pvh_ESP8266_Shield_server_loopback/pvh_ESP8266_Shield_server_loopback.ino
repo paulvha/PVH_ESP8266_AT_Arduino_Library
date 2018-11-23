@@ -559,8 +559,6 @@ int readData(ESP8266Client client, char *out, int len, int retry)
    char ch_len[5];
    int retry_loop = retry;
 
-   out[0] = 0x0;                       // terminate return message in case of empty message received
-
   // Try at least loop times before returning
   while (retry_loop > 0)
   {
@@ -598,7 +596,13 @@ int readData(ESP8266Client client, char *out, int len, int retry)
       {
         //output to provided buffer
         out[i++] = c;
-        if (i == len) return len;
+
+        // prevent buffer overrun
+        if (i == len-1)
+        {
+          out[i] = 0x0;  // terminate
+          return i;
+        }
       }
 
       // if we got atleast ONE character, but not all increase retry_loop to keep trying to get all
@@ -609,6 +613,8 @@ int readData(ESP8266Client client, char *out, int len, int retry)
       else return i;
     }
   }
+
+  out[i] = 0x0;  // terminate
 
   // return count of characters in buffer
   return i;

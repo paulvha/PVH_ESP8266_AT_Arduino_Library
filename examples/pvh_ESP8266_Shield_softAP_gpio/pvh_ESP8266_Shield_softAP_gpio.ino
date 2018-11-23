@@ -784,15 +784,17 @@ int setmode(bool conf, int mode)
  */
 int readData(ESP8266Client client, char *out, int len, int retry)
 {
-   bool wait = 1;
+   int wait = 0;
    char c;
-   int i = 0;
+   int i = 0, ch_count = 0;
+   char ch_len[5];
+   int retry_loop = retry;
 
-  // Try at least loop times
-  while (retry > 0)
+  // Try at least loop times before returning
+  while (retry_loop > 0)
   {
-     retry--;
-     delay(10);    // wait 10ms
+     retry_loop--;
+     delay(100);                      // wait 100ms to handle any delay between characters
 
     // available() will return the number of characters
     // currently in the receive buffer.
@@ -801,24 +803,50 @@ int readData(ESP8266Client client, char *out, int len, int retry)
       // get character from buffer
       c = client.read();
 
-      // skip +IPD ....  header
-      if (wait)
+      // parse +IPD ....  header. format is : +IPD,0,4:paul
+      if (wait < 3)
       {
-        if (c == ':')  wait = 0;
-        continue;
+        if (wait == 2) ch_len[i++] = c;  // after the second comma : store character count digit(s)
+
+        if (c == ',') wait++;            // count comma's
+
+        else if (c == ':')               // end of header
+        {
+          ch_len[i] = 0x0;               // terminate buffer
+          ch_count= atoi(ch_len);        // calculate length of message
+          wait = 3;                      // indicate header has been parsed
+          i = 0;                         // reset storage counter
+        }
+
+        continue;                        // skip rest of loop
       }
 
+      // if no buffer length, just display character on serial/screen
       if (len == 0) Serial.write(c);
       else
       {
         //output to provided buffer
         out[i++] = c;
-        out[i] = 0x0; // terminate
-        if (i == len) return len;
+
+        // prevent buffer overrun
+        if (i == len-1)
+        {
+          out[i] = 0x0;  // terminate
+          return i;
+        }
       }
+
+      // if we got atleast ONE character, but not all increase retry_loop to keep trying to get all
+      // we should not expect/hope this loopcount will be reached. This is only to prevent a dead-lock
+      if (--ch_count > 0) retry_loop = 10;
+
+      // seems we got them all, no need for waiting and retry
+      else return i;
     }
   }
 
-  // return count in buffer
+  out[i] = 0x0;  // terminate
+
+  // return count of characters in buffer
   return i;
 }

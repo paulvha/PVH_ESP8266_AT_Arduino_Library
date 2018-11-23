@@ -1,16 +1,24 @@
 /**********************************************************************
-* VERSION 1.0 / PAULVHA / JANUARY 2018	/ ESP8266-PVH-driver
-* 
+* VERSION 1.0 / PAULVHA / JANUARY 2018  / ESP8266-PVH-driver
+*
 * PVH_ESP8266Server.h
-* 
+*
 * This an updated version for the ESP8266 AT WIFI shield driver
 * for the Arduino. It contains a number of bugfixes, enhancements and
 * new features that are not part of the original version (see below)
-* 
-* Distributed as-is; no warranty is given. 
+*
+* VERSION 2.1 / PAULVHA / November 2018  / ESP8266-PVH-driver
+* new option + bug fixes
+* - with get_url_parameter you can obtain the query string as part of the URL
+* - fixed issue with readData() in different sketches to prevent buffer overrun
+* - updated client.connected() to enable more stable performance and capture url_parameters
+* - update server.available() to provide additional feedback in seperate variable.
+* - change updateStatus() and readForResponses() to capture Url_parameters
+*
+* Distributed as-is; no warranty is given.
 ***********************************************************************
-* Original version : 
-* 
+* Original version :
+*
 SparkFunESP8266Server.h
 ESP8266 WiFi Shield Library Server Header File
 Jim Lindblom @ SparkFun Electronics
@@ -20,9 +28,9 @@ http://github.com/sparkfun/SparkFun_ESP8266_AT_Arduino_Library
 !!! Description Here !!!
 
 Development environment specifics:
-	IDE: Arduino 1.6.5
-	Hardware Platform: Arduino Uno
-	ESP8266 WiFi Shield Version: 1.0
+    IDE: Arduino 1.6.5
+    Hardware Platform: Arduino Uno
+    ESP8266 WiFi Shield Version: 1.0
 
 This code is beerware; if you see me (or any other SparkFun employee) at the
 local, and you've found our code helpful, please buy us a round!
@@ -40,20 +48,21 @@ Distributed as-is; no warranty is given.
 #include "PVH_ESP8266WiFi.h"
 #include "PVH_ESP8266Client.h"
 
-class ESP8266Server : public Server 
+
+class ESP8266Server : public Server
 {
 public:
-	ESP8266Server(uint16_t);
-	ESP8266Client available(uint8_t wait = 0);
-	void begin();
-	virtual size_t write(uint8_t);
-	virtual size_t write(const uint8_t *buf, size_t size);
-	uint8_t status();
+    ESP8266Server(uint16_t);
+    ESP8266Client available(uint8_t wait, int *result);
+    ESP8266Client available(uint8_t wait) {available(wait,0);}  // maintain backward compatibility
+    void begin();
+    virtual size_t write(uint8_t);
+    virtual size_t write(const uint8_t *buf, size_t size);
+    uint8_t status();
+    using Print::write;
 
-	using Print::write;
-	
 private:
-	uint16_t _port;
+    uint16_t _port;
 };
 
 #endif
